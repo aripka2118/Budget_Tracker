@@ -1,0 +1,8 @@
+# Personal data and secrets - never commit
+budget-import.json
+budget-*.json
+users/
+*.key
+.env
+.env.*
+.claude/

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Budget Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash of the wrong colors.
+    try {
+      var t = localStorage.getItem("budgetTracker.theme");
+      if (t && t !== "auto") document.documentElement.dataset.theme = t;
+    } catch (e) { /* ignore */ }
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Budget Tracker</h1>
+    <div class="backup">
+      <button type="button" id="user-btn" class="secondary" data-open-users aria-label="Switch user"></button>
+      <button type="button" class="secondary" data-open-settings>Settings</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+
+  <main id="view"></main>
+
+  <dialog id="dlg-paycheck">
+    <form id="pc-form" class="dlg-form">
+      <h2>Add paycheck</h2>
+      <label class="field">Date <input type="date" id="pc-date" required></label>
+      <label class="field">Amount <input type="number" id="pc-amount" min="0.01" step="0.01" required></label>
+      <label class="field">Note (optional) <input type="text" id="pc-note" maxlength="80"></label>
+      <div class="dlg-actions">
+        <button type="button" class="secondary" data-close>Cancel</button>
+        <button type="submit">Add paycheck</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-tx">
+    <form id="tx-form" class="dlg-form">
+      <h2 id="tx-title">Add transaction</h2>
+      <label class="field">Category <select id="tx-category" required></select></label>
+      <label class="field">Reason <input type="text" id="tx-reason" maxlength="80"></label>
+      <label class="field">Amount <input type="number" id="tx-amount" min="0.01" step="0.01" required></label>
+      <div class="seg" role="radiogroup" aria-label="Added or subtracted">
+        <label><input type="radio" name="tx-kind" value="sub" checked> Subtracted</label>
+        <label><input type="radio" name="tx-kind" value="add"> Added</label>
+      </div>
+      <label class="field">Date <input type="date" id="tx-date" required></label>
+      <div class="dlg-actions">
+        <button type="button" class="secondary" data-close>Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-trade">
+    <form id="trade-form" class="dlg-form">
+      <h2 id="trade-title">Buy / Sell</h2>
+      <label class="field">Holding <select id="trade-holding" required></select></label>
+      <div class="seg" role="radiogroup" aria-label="Buy or sell">
+        <label><input type="radio" name="trade-kind" value="buy" checked> Buy</label>
+        <label><input type="radio" name="trade-kind" value="sell"> Sell</label>
+      </div>
+      <div class="field-row">
+        <label class="field grow">Shares <input type="number" id="trade-shares" min="0" step="any" required></label>
+        <label class="field grow">Price per share <input type="number" id="trade-price" min="0" step="0.01" required></label>
+      </div>
+      <label class="field">Date <input type="date" id="trade-date" required></label>
+      <div class="dlg-actions">
+        <button type="button" class="secondary" data-close>Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-settings" class="wide">
+    <div class="dlg-form">
+      <h2>Settings</h2>
+
+      <section class="set-section">
+        <h3>Theme</h3>
+        <div id="theme-grid" class="theme-grid" role="group" aria-label="Theme"></div>
+        <p class="note">Your choice is saved in this browser. "System" follows your device's light/dark setting.</p>
+      </section>
+
+      <section class="set-section">
+        <h3>Live prices</h3>
+        <form id="prices-form">
+          <p class="note">Prices come from Finnhub (free). Sign up at finnhub.io, copy your API key from the dashboard and paste it here. It is stored only in this browser, for the current user, and is not included in Export.</p>
+          <label class="field">Finnhub API key <input type="text" id="prices-key" autocomplete="off" spellcheck="false"></label>
+          <p id="prices-status" class="note"></p>
+          <p class="note">Prices refresh when this page opens and about once an hour while it stays open.</p>
+          <button type="submit">Save &amp; refresh</button>
+        </form>
+      </section>
+
+      <section class="set-section">
+        <h3>Backup</h3>
+        <div class="btn-row">
+          <button type="button" class="secondary" data-export-data>Export</button>
+          <button type="button" class="secondary" data-import-data>Import</button>
+          <input type="file" id="import-file" accept="application/json" hidden>
+        </div>
+        <p class="note" id="backup-note"></p>
+      </section>
+
+      <div class="dlg-actions">
+        <button type="button" data-close>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-users">
+    <div class="dlg-form">
+      <h2>Users</h2>
+      <ul id="user-list" class="user-list"></ul>
+      <form id="user-form" class="user-add">
+        <label class="field grow">Add a user <input type="text" id="user-new-name" maxlength="24" placeholder="Name" autocomplete="off"></label>
+        <button type="submit">Add</button>
+      </form>
+      <p id="user-error" class="note bad"></p>
+      <p class="note">Each user has their own data and Finnhub key. Users are stored in this browser, so use Export under Settings to keep a backup.</p>
+      <div class="dlg-actions">
+        <button type="button" data-close>Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-goal">
+    <form id="goal-form" class="dlg-form">
+      <h2 id="goal-title">New goal</h2>
+      <label class="field">Name <input type="text" id="goal-name" required maxlength="40" placeholder="e.g. Emergency fund"></label>
+      <label class="field">Target amount <input type="number" id="goal-target" min="0.01" step="0.01" required></label>
+      <label class="field">Track with
+        <select id="goal-link"></select>
+      </label>
+      <label class="field" id="goal-saved-wrap">Saved so far <input type="number" id="goal-saved" step="0.01" value="0"></label>
+      <label class="field">Target date (optional) <input type="date" id="goal-due"></label>
+      <p class="note" id="goal-hint"></p>
+      <div class="dlg-actions">
+        <button type="button" class="secondary" data-close>Cancel</button>
+        <button type="submit">Save goal</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-fund">
+    <form id="fund-form" class="dlg-form">
+      <h2 id="fund-title">Add funds</h2>
+      <div class="seg" role="radiogroup" aria-label="Add or remove">
+        <label><input type="radio" name="fund-kind" value="add" checked> Add</label>
+        <label><input type="radio" name="fund-kind" value="remove"> Remove</label>
+      </div>
+      <label class="field">Amount <input type="number" id="fund-amount" min="0.01" step="0.01" required></label>
+      <div class="dlg-actions">
+        <button type="button" class="secondary" data-close>Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-class">
+    <form id="cls-form" class="dlg-form">
+      <h2>New class</h2>
+      <label class="field">Name <input type="text" id="cls-name" required maxlength="40" placeholder="e.g. Budget"></label>
+      <label class="field">% of each paycheck <input type="number" id="cls-percent" min="0" max="100" step="0.01" required></label>
+      <label class="field">Type
+        <select id="cls-kind">
+          <option value="spend">Spending (a budget you spend down)</option>
+          <option value="hold">Savings/Investment (a balance that grows)</option>
+          <option value="stocks">Stocks (shares at live prices)</option>
+        </select>
+      </label>
+      <p id="cls-hint" class="note"></p>
+      <div class="dlg-actions">
+        <button type="button" class="secondary" data-close>Cancel</button>
+        <button type="submit">Create class</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-manage" class="wide">
+    <div class="dlg-form">
+      <h2 id="manage-title">Manage</h2>
+      <div id="manage-body"></div>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
